@@ -1,21 +1,27 @@
 # Audio-to-Text CLI Tool
 
-This is a command-line interface (CLI) tool that converts voice or recorded audio files (up to 1GB) into text. It supports multiple audio formats and uses the Google Speech Recognition API for transcription. The tool is designed to be modular and easily extensible for future improvements.
+This is a command-line interface (CLI) tool that converts voice or recorded audio files (up to 1GB) into text. It supports multiple audio formats and uses the Google Speech Recognition API for transcription. The tool is designed to be modular and easily extensible for future improvements, with a focus on performance, lightweightness, and robust error handling.
 
 ## Features
 
 - **Multiple Audio Formats:** Supports WAV, MP3, FLAC, OGG, M4A.
 - **Automatic Conversion:** Converts non-WAV files to WAV format before transcription.
 - **Chunk Processing:** Handles large audio files by splitting them into manageable 60-second chunks.
-- **Error Handling:** Provides informative error messages for unsupported formats, network issues, and transcription errors.
-- **Customizable:** Options to change chunk duration and transcription language.
+- **Improved Error Handling:** Provides more specific and actionable error messages for unsupported formats, network issues, and transcription errors.
+- **Robust Temporary File Management:** Uses Python's `tempfile` module for secure and automatic cleanup of temporary WAV files.
+- **Transcription Progress Indicator:** Displays a progress bar during transcription for better user experience.
+- **Customizable:** Options to change chunk duration, transcription language, and transcription engine.
+- **Structured Output Options:** Supports output in plain text, SRT, and VTT formats.
+- **Resume Functionality:** Allows resuming interrupted transcriptions from the last successfully processed chunk.
 
 ## Requirements
 
 - Python 3.x
 - [SpeechRecognition](https://pypi.org/project/SpeechRecognition/)
 - [PyDub](https://pypi.org/project/pydub/)
-- [PyAudio](https://pypi.org/project/PyAudio/) (may require additional system dependencies)
+- [tqdm](https://pypi.org/project/tqdm/) (for progress bar)
+- [pytest](https://docs.pytest.org/en/stable/) (for running tests)
+- [pytest-mock](https://pytest-mock.readthedocs.io/en/latest/) (for testing)
 
 ## Installation
 
@@ -35,22 +41,6 @@ This is a command-line interface (CLI) tool that converts voice or recorded audi
 
 3. **Install Dependencies:**
 
-   You can install the required libraries using pip:
-
-   ```bash
-   pip install SpeechRecognition pydub pyaudio
-   ```
-
-   Alternatively, you may create a `requirements.txt` file with the following content:
-
-   ```text
-   SpeechRecognition
-   pydub
-   pyaudio
-   ```
-
-   And install with:
-
    ```bash
    pip install -r requirements.txt
    ```
@@ -60,22 +50,39 @@ This is a command-line interface (CLI) tool that converts voice or recorded audi
 Run the CLI tool using the following command:
 
 ```bash
-python index.py input_audio_file output_text_file
+python main.py input_audio_file output_text_file
 ```
 
 For example, if you have an audio file named `audio.mp3`:
 
 ```bash
-python index.py audio.mp3 output_text.txt
+python main.py audio.mp3 output_text.txt
 ```
 
 ### Optional Arguments
 
 - `--chunk`: Specify the chunk duration in seconds (default: 60).
 - `--language`: Specify the language code for transcription (default: `id-ID` for Indonesian).
+- `--engine`: Specify the transcription engine to use (google) (default: `google`).
+- `--output-format`: Specify the output format (txt, srt, vtt) (default: `txt`).
+- `--resume`: Path to a progress file to resume transcription from.
 
 Example with optional parameters:
 
 ```bash
-python index.py audio.mp3 output_text.txt --chunk 45 --language id-ID
+python main.py audio.mp3 output_text.txt --chunk 45 --language en-US --output-format srt
+```
+
+To resume a transcription:
+
+```bash
+python main.py audio.mp3 output_text.txt --resume progress.json
+```
+
+## Running Tests
+
+To run the tests, navigate to the project root directory and execute:
+
+```bash
+pytest
 ```

@@ -1,0 +1,6 @@
+pydub
+speechrecognition
+tqdm
+pytest
+pytest-mock
+
