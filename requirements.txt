@@ -3,4 +3,4 @@ speechrecognition
 tqdm
 pytest
 pytest-mock
-
+faster-whisper

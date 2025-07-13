@@ -1,7 +1,7 @@
 import pytest
 import os
-from unittest.mock import patch, mock_open
-from transcriber import transcribe_audio_in_chunks, get_audio_duration
+from unittest.mock import patch, mock_open, MagicMock, ANY
+from transcriber import transcribe_audio_in_chunks, get_audio_duration, load_faster_whisper_model
 from pydub import AudioSegment
 import speech_recognition as sr
 import json
@@ -28,7 +28,7 @@ def test_transcribe_audio_in_chunks_success(mock_from_wav, mock_recognize_google
     wav_path = create_dummy_wav_file("test.wav", duration_ms=120000) # 2 minutes
     mock_from_wav.return_value = AudioSegment.silent(duration=120000) # Mock 2 minutes of audio
 
-    chunks = transcribe_audio_in_chunks(wav_path, chunk_duration=60, language="en-US")
+    chunks = transcribe_audio_in_chunks(wav_path, chunk_duration=60, language="en-US", engine="google", temp_dir=tmp_path)
 
     assert chunks is not None
     assert len(chunks) == 2
@@ -38,15 +38,15 @@ def test_transcribe_audio_in_chunks_success(mock_from_wav, mock_recognize_google
     assert chunks[1]["text"] == "hello world"
     assert chunks[1]["start_time"] == 60.0
     assert chunks[1]["end_time"] == 120.0
-    assert mock_recognize_google.call_count == 2
+    mock_recognize_google.call_count == 2
 
 @patch('speech_recognition.Recognizer.recognize_google', side_effect=sr.UnknownValueError)
 @patch('pydub.AudioSegment.from_wav')
-def test_transcribe_audio_in_chunks_unknown_value_error(mock_from_wav, mock_recognize_google, create_dummy_wav_file):
+def test_transcribe_audio_in_chunks_unknown_value_error(mock_from_wav, mock_recognize_google, create_dummy_wav_file, tmp_path):
     wav_path = create_dummy_wav_file("test.wav", duration_ms=60000)
     mock_from_wav.return_value = AudioSegment.silent(duration=60000)
 
-    chunks = transcribe_audio_in_chunks(wav_path, chunk_duration=60, language="en-US")
+    chunks = transcribe_audio_in_chunks(wav_path, chunk_duration=60, language="en-US", engine="google", temp_dir=tmp_path)
 
     assert chunks is not None
     assert len(chunks) == 1
@@ -54,25 +54,25 @@ def test_transcribe_audio_in_chunks_unknown_value_error(mock_from_wav, mock_reco
 
 @patch('speech_recognition.Recognizer.recognize_google', side_effect=sr.RequestError("API Limit Exceeded"))
 @patch('pydub.AudioSegment.from_wav')
-def test_transcribe_audio_in_chunks_request_error(mock_from_wav, mock_recognize_google, create_dummy_wav_file):
+def test_transcribe_audio_in_chunks_request_error(mock_from_wav, mock_recognize_google, create_dummy_wav_file, tmp_path):
     wav_path = create_dummy_wav_file("test.wav", duration_ms=60000)
     mock_from_wav.return_value = AudioSegment.silent(duration=60000)
 
-    chunks = transcribe_audio_in_chunks(wav_path, chunk_duration=60, language="en-US")
+    chunks = transcribe_audio_in_chunks(wav_path, chunk_duration=60, language="en-US", engine="google", temp_dir=tmp_path)
 
     assert chunks is not None
     assert len(chunks) == 1
     assert "[RequestError: API Limit Exceeded]" in chunks[0]["text"]
 
 @patch('pydub.AudioSegment.from_wav', side_effect=FileNotFoundError)
-def test_transcribe_audio_in_chunks_file_not_found(mock_from_wav):
+def test_transcribe_audio_in_chunks_file_not_found(mock_from_wav, tmp_path):
     with pytest.raises(FileNotFoundError, match="WAV file not found"):
-        transcribe_audio_in_chunks("non_existent.wav")
+        transcribe_audio_in_chunks("non_existent.wav", engine="google", temp_dir=tmp_path)
 
 @patch('pydub.AudioSegment.from_wav', side_effect=Exception("Pydub error"))
-def test_transcribe_audio_in_chunks_pydub_error(mock_from_wav):
+def test_transcribe_audio_in_chunks_pydub_error(mock_from_wav, tmp_path):
     with pytest.raises(ValueError, match="Error loading WAV file"):
-        transcribe_audio_in_chunks("test.wav")
+        transcribe_audio_in_chunks("test.wav", engine="google", temp_dir=tmp_path)
 
 @patch('pydub.AudioSegment.from_wav')
 def test_get_audio_duration_success(mock_from_wav, create_dummy_wav_file):
@@ -110,18 +110,19 @@ def test_transcribe_audio_in_chunks_resume(mock_from_wav, mock_recognize_google,
         json.dump(initial_progress, f)
 
     # Call transcribe_audio_in_chunks with resume parameters
-    chunks = transcribe_audio_in_chunks(wav_path, chunk_duration=60, language="en-US", 
-                                        start_chunk_index=1, resume_path=str(resume_file))
+    chunk_duration = 60
+    chunks = transcribe_audio_in_chunks(wav_path, chunk_duration=chunk_duration, language="en-US", 
+                                        start_chunk_index=1, resume_path=str(resume_file), engine="google", temp_dir=tmp_path, existing_chunks=initial_progress["transcribed_chunks"])
 
     # Expect only the remaining chunks to be transcribed
     assert chunks is not None
-    assert len(chunks) == 2 # Should transcribe chunk 1 and 2
-    assert chunks[0]["text"] == "resumed text"
-    assert chunks[0]["start_time"] == 60.0
-    assert chunks[0]["end_time"] == 120.0
-    assert chunks[1]["text"] == "resumed text"
-    assert chunks[1]["start_time"] == 120.0
-    assert chunks[1]["end_time"] == 180.0
+    assert len(chunks) == 3 # Should transcribe chunk 1 and 2
+    assert chunks[0]["text"] == "first chunk"
+    assert chunks[0]["start_time"] == 0.0
+    assert chunks[0]["end_time"] == 60.0
+    assert chunks[0]["text"] == "first chunk"
+    assert chunks[1]["start_time"] == 60.0
+    assert chunks[1]["end_time"] == 2 * chunk_duration
     assert mock_recognize_google.call_count == 2 # Only 2 new calls
 
     # Verify progress file was updated
@@ -129,3 +130,46 @@ def test_transcribe_audio_in_chunks_resume(mock_from_wav, mock_recognize_google,
         updated_progress = json.load(f)
         assert updated_progress["last_chunk_index"] == 2 # Last chunk index should be 2 (0-indexed)
         assert len(updated_progress["transcribed_chunks"]) == 3 # Original + 2 new
+
+@patch('transcriber.load_faster_whisper_model')
+@patch('pydub.AudioSegment.from_wav')
+def test_transcribe_audio_in_chunks_faster_whisper_success(mock_from_wav, mock_load_faster_whisper_model, create_dummy_wav_file, tmp_path):
+    wav_path = create_dummy_wav_file("test.wav", duration_ms=60000)
+    mock_from_wav.return_value = AudioSegment.silent(duration=60000)
+    
+    mock_model_instance = MagicMock()
+    mock_load_faster_whisper_model.return_value = mock_model_instance
+    mock_model_instance.transcribe.return_value = ([MagicMock(text="faster whisper transcription")], MagicMock())
+
+    chunks = transcribe_audio_in_chunks(wav_path, chunk_duration=60, language="en-US", engine="faster-whisper", temp_dir=tmp_path)
+
+    assert chunks is not None
+    assert len(chunks) == 1
+    assert chunks[0]["text"] == "faster whisper transcription"
+    mock_load_faster_whisper_model.assert_called_once()
+    mock_model_instance.transcribe.assert_called_once_with(ANY, beam_size=5, language="en-US")
+
+@patch('pydub.AudioSegment.from_wav')
+def test_transcribe_audio_in_chunks_empty_audio(mock_from_wav, create_dummy_wav_file, tmp_path):
+    wav_path = create_dummy_wav_file("empty.wav", duration_ms=0)
+    mock_from_wav.return_value = AudioSegment.empty()
+
+    chunks = transcribe_audio_in_chunks(wav_path, chunk_duration=60, language="en-US", engine="google", temp_dir=tmp_path)
+    assert chunks == []
+
+@patch('pydub.AudioSegment.from_wav')
+def test_transcribe_audio_in_chunks_short_audio(mock_from_wav, create_dummy_wav_file, mocker, tmp_path):
+    wav_path = create_dummy_wav_file("short.wav", duration_ms=30000) # 30 seconds
+    mock_from_wav.return_value = AudioSegment.silent(duration=30000)
+    mocker.patch('speech_recognition.Recognizer.recognize_google', return_value="short audio")
+
+    chunks = transcribe_audio_in_chunks(wav_path, chunk_duration=60, language="en-US", engine="google", temp_dir=tmp_path)
+    assert len(chunks) == 1
+    assert chunks[0]["text"] == "short audio"
+    assert chunks[0]["start_time"] == 0.0
+    assert chunks[0]["end_time"] == 30.0
+
+def test_transcribe_audio_in_chunks_unsupported_engine(create_dummy_wav_file, tmp_path):
+    wav_path = create_dummy_wav_file("test.wav")
+    with pytest.raises(ValueError, match="Unsupported transcription engine: unsupported_engine"):
+        transcribe_audio_in_chunks(wav_path, engine="unsupported_engine", temp_dir=tmp_path)

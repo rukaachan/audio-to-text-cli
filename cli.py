@@ -18,7 +18,8 @@ def parse_arguments():
     parser.add_argument("--output-format", type=str, default="txt", choices=["txt", "srt", "vtt"],
                         help="Output format for the transcription (default: txt)")
     parser.add_argument("--resume", type=str, help="Path to a progress file to resume transcription from.")
-    parser.add_argument("--engine", type=str, default="google", choices=["google"],
+    parser.add_argument("--engine", type=str, default="google", choices=["google", "faster-whisper"],
                         help="Transcription engine to use (default: google)")
+    parser.add_argument("--temp-dir", type=str, help="Path to a custom temporary directory for audio processing.")
     
     return parser.parse_args()

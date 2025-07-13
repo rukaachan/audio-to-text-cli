@@ -1,3 +1,4 @@
+from asyncio.log import logger
 import os
 import tempfile
 from pydub import AudioSegment
@@ -31,8 +32,8 @@ def convert_to_wav(input_path):
         def cleanup():
             try:
                 os.remove(wav_path)
-            except OSError:
-                pass
+            except OSError as e:
+                logger.warning(f"Could not remove temporary file {wav_path}: {e}")
 
         return wav_path, cleanup
     except FileNotFoundError:

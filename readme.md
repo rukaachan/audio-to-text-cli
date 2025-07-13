@@ -38,8 +38,8 @@ This is a command-line interface (CLI) tool that converts voice or recorded audi
 2. **Set Up a Virtual Environment (Recommended):**
 
    ```bash
-   python -m venv myenv
-   source myenv/bin/activate  # On Windows: myenv\Scripts\activate
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
 
 3. **Install Dependencies:**
