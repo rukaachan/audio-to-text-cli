@@ -16,8 +16,11 @@ This is a command-line interface (CLI) tool that converts voice or recorded audi
 
 ## Requirements
 
+- **FFmpeg/libav:** `pydub` requires FFmpeg or libav to be installed and accessible in your system's PATH. You can download it from [ffmpeg.org](https://ffmpeg.org/download.html) or install via your system's package manager (e.g., `sudo apt-get install ffmpeg` on Debian/Ubuntu, `brew install ffmpeg` on macOS).
+
 - Python 3.x
 - [SpeechRecognition](https://pypi.org/project/SpeechRecognition/)
+    *   **Note on Python 3.13 Compatibility**: Users of Python 3.13 may encounter a `DeprecationWarning` related to the `aifc` module from the `speech_recognition` library. While tests currently pass despite this warning, for full compatibility and to avoid potential future issues, consider using Python 3.12 or earlier if you experience unexpected behavior.
 - [PyDub](https://pypi.org/project/pydub/)
 - [tqdm](https://pypi.org/project/tqdm/) (for progress bar)
 - [pytest](https://docs.pytest.org/en/stable/) (for running tests)
@@ -28,7 +31,7 @@ This is a command-line interface (CLI) tool that converts voice or recorded audi
 1. **Clone the Repository:**
 
    ```bash
-   git clone https://github.com/rukaachan/audio-to-text-cli
+   git clone https://github.com/rukaachan/audio-to-text-cli # Or your forked repository URL
    cd audio-to-text-cli
    ```
 
@@ -53,11 +56,12 @@ Run the CLI tool using the following command:
 python main.py input_audio_file output_text_file
 ```
 
-For example, if you have an audio file named `audio.mp3`:
+For example, if you have an audio file named `dummy_audio.mp3` (provided in the repository):
 
 ```bash
-python main.py audio.mp3 output_text.txt
+python main.py dummy_audio.mp3 output_text.txt
 ```
+*Note: `output_text.txt` is a general placeholder for your output file. A specific example output file, `dummy_output.txt`, is ignored by Git.*
 
 ### Optional Arguments
 
@@ -65,18 +69,26 @@ python main.py audio.mp3 output_text.txt
 - `--language`: Specify the language code for transcription (default: `id-ID` for Indonesian).
 - `--engine`: Specify the transcription engine to use (google) (default: `google`).
 - `--output-format`: Specify the output format (txt, srt, vtt) (default: `txt`).
-- `--resume`: Path to a progress file to resume transcription from.
+- `--resume`: Path to a progress file (e.g., `progress.json`) to resume transcription from. This JSON file is generated during a previous run and contains information about processed chunks.
 
 Example with optional parameters:
 
 ```bash
-python main.py audio.mp3 output_text.txt --chunk 45 --language en-US --output-format srt
+python main.py dummy_input.mp3 output_text.txt --chunk 45 --language en-US --output-format srt
 ```
 
 To resume a transcription:
 
 ```bash
-python main.py audio.mp3 output_text.txt --resume progress.json
+python main.py dummy_audio.mp3 output_text.txt --resume progress.json
+```
+
+- `--temp-dir`: Specify a custom temporary directory for audio processing (optional).
+
+Example using `--temp-dir`:
+
+```bash
+python main.py dummy_audio.mp3 output_text.txt --temp-dir /tmp/my_audio_temp
 ```
 
 ## Running Tests
